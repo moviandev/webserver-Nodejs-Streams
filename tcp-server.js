@@ -16,7 +16,7 @@ function handleConnection(socket) {
   // Única inscrição no metodo readable para então chamarmos o .read()
   socket.once('readable', () => {
     // Configurando um buffer para guardar os dados que estão chegando
-    let reqBuffer = new Buffer('');
+    let reqBuffer = new Buffer.from('');
 
     // Configurar um buffer temporario para ler os dados dos pedaços que estão chegando
     let buf;
@@ -47,7 +47,7 @@ function handleConnection(socket) {
 
       // Nesse ponto paramos de ler do socket e temos o cabeçalho como uma string
       // Se quisermos ler todo o corpo da requisição podemos fazer o seguinte:
-      reqBuffer = new Buffer('');
+      reqBuffer = new Buffer.from('');
       while ((buf = socket.read()) !== null) {
         reqBuffer = Buffer.concat([reqBuffer, buf]);
       }
