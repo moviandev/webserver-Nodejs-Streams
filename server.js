@@ -62,6 +62,106 @@ function createWebServer(requestHandler) {
         // O usuário desse servidor de internet pode ler diretamente do socket para pegar o corpo da requisição
         socket,
       };
+
+      /* Negocio relacionado a resposta */
+      // Valores iniciais
+      let status = 200,
+        statusText = 'OK',
+        headersSent = false,
+        isChunked = false;
+      const responseHeaders = {
+        server: 'my-custom-server',
+      };
+
+      function setHeader(key, value) {
+        responseHeaders[key.toLowerCase()] = value;
+      }
+
+      function sendHeaders() {
+        // Faça isso apenas uma única vez.
+        if (!headersSent) {
+          headersSent = true;
+
+          // Adicionar a data ao cabeçalho
+          setHeader('date', new Date().toGMTString());
+
+          // Enviar a linha de status
+          socket.write(`HTTP/1.1 ${status} ${statusText}\r\n`);
+
+          // A seguir enviar cada cabeçalho
+          Object.keys(responseHeaders).forEach((headerKey) => {
+            socket.write(`${headerKey}: ${responseHeaders[headerKey]}\r\n`);
+          });
+
+          // Adicionar ao final \r\n para demilitar o cabeçalho de resposta do corpo
+          socket.write('\r\n');
+        }
+      }
+
+      const response = {
+        write(chunk) {
+          if (!headersSent) {
+            // Se não tiver tiver nenhum cabeçalho "tamanho de conteúdo" content-length, então especificar a "Codificação de Transferência" Transfer-Encodgin como chunked
+            if (!responseHeaders['content-length']) {
+              isChunked = true;
+              setHeader('transfer-encoding', 'chunked');
+            }
+            sendHeaders();
+          }
+          if (isCHunked) {
+            const size = chunk.length.toString(16);
+            socket.write(`${size}\r\n`);
+            socket.write(chunk);
+            socket.write('\r\n');
+          } else {
+            socket.write(chunk);
+          }
+        },
+        end(chunk) {
+          if (!headersSent) {
+            // Nós sabemos o tamanho completo da resposta, vamos configurar
+            if (!responseHeaders['content-length']) {
+              // Assumimos que o "pedaço" chunk é um Buffer, não uma string
+              setHeader('content-length', chunk ? chunk.length : 0);
+            }
+            sendHeaders();
+          }
+
+          if (isChunked) {
+            if (chunk) {
+              const size = chunk.length.toString(16);
+              socket.write(`${size}\r\n`);
+              socket.write(chunk);
+              socket.write('\r\n');
+            }
+            socket.end('0\r\n');
+          } else {
+            socket.end(chunk);
+          }
+        },
+        setHeader,
+        setStatus(newStatus, newStatusText) {
+          (status = newStatus), (statusText = newStatusText);
+        },
+        // ENviar um json pelo servidor
+        json(data) {
+          if (headerSent)
+            throw new Error('Headers sent, cannot proceed to send JSON');
+
+          const json = new Buffer.from(JSON.stringify(data));
+          setHeader('content-type', 'application/json; charset=utf-8');
+          setHeader('content-length', json.length);
+          sendHeaders();
+          socket.end(json);
+        },
+      };
+
+      // Enviar a requisição para o handler
+      requestHandler(request, response);
     });
   }
+
+  return {
+    listen: (port) => server.listen(port),
+  };
 }
