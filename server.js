@@ -165,3 +165,12 @@ function createWebServer(requestHandler) {
     listen: (port) => server.listen(port),
   };
 }
+
+const webServer = createWebServer((req, res) => {
+  // The original code from hello-world file ;)
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  res.setHeader('Content-Type', 'text/plain');
+  res.end('Hello World');
+});
+
+webServer.listen(3000);
